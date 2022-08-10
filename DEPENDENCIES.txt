@@ -1,0 +1,12 @@
+# LuaRocks
+
+- http
+- lgi
+- sqlite
+- luv
+- lua-struct
+
+# System
+
+- gtksourceview
+- sqlite3
