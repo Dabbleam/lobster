@@ -6,6 +6,8 @@ local Gio = lgi.Gio
 local GtkSource = lgi.GtkSource
 local GObject = lgi.GObject
 
+local state = require "ui.state"
+
 local function create_application()
 	local application = Gtk.Application {
 		application_id = "com.dabbleam.lobster",
@@ -48,6 +50,10 @@ local function create_application()
 			text = myOwnCodeText
 		}
 
+		state:on( "responseText", function( response )
+			buffer:set_text( response, -1 )
+		end )
+
 		local languageManager = GtkSource.LanguageManager()
 		local language = languageManager:get_language( "lua" )
 		buffer:set_language( language )
@@ -69,7 +75,18 @@ local function create_application()
 		sourceView:set_editable( false )
 
 		scrollWindow:add( sourceView )
+
+		local button = Gtk.Button {
+			label = "Change state"
+		}
+
+		function button:on_clicked()
+			state.responseText = "-- Test"
+		end
+
+		grid:attach( button, 0, 1, 1, 1 )
 		grid:attach( scrollWindow, 0, 0, 1, 1 )
+
 		window:add( grid )
 
 		function window:on_destroy()
