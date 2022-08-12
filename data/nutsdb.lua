@@ -3,7 +3,7 @@
 -- Used in this project to migrate history and settings from Probster
 
 local struct = require "struct"
-local bit = require "bit"
+require "includes.thirdparty.crc32"
 
 --- NutsDB format, taken from datafile.go
 
@@ -71,11 +71,14 @@ function nuts:read_entry()
 		return
 	end
 
-	-- TODO: verify CRC!
-
 	local bucket = self.f:read( bucketSz )
 	local key = self.f:read( ksz )
 	local value = self.f:read( vsz )
+
+	local crcPayload = struct.pack( "<LIIHIIHHL", timestamp, ksz, vsz, flag, ttl, bucketSz, status, ds, txId ) .. bucket .. key .. value
+	local computedCrc = crc32.hash( crcPayload )
+
+	assert( computedCrc == crc, "CRC mismatch reading entry '" .. key .. "' from bucket '" .. bucket .. "'" )
 
 	local entry = {
 		bucket = bucket,
@@ -92,7 +95,7 @@ end
 
 do return end
 
-local test = nuts.open( "test" )
+local test = nuts.open( "data/test" )
 test:read_file( "0" )
 test:read_file( "1" )
 test:read_file( "2" )
