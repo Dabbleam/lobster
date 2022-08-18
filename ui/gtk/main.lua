@@ -6,6 +6,7 @@ local Gio = lgi.Gio
 local GtkSource = lgi.GtkSource
 local GObject = lgi.GObject
 local GLib = lgi.GLib
+local Granite = lgi.Granite
 
 local state = require "ui.state"
 
@@ -48,11 +49,27 @@ local function create_application()
 			default_height = 700,
 		}
 
+		local headerBar = Gtk.HeaderBar {
+			title = "Lobster",
+			show_close_button = true
+		}
+
+		local darkModeSwitch = Granite.ModeSwitch.from_icon_name( "display-brightness-symbolic", "weather-clear-night-symbolic" )
+
+		darkModeSwitch:set_primary_icon_tooltip_text( "Light mode" )
+		darkModeSwitch:set_secondary_icon_tooltip_text( "Dark mode" )
+		darkModeSwitch:set_valign( Gtk.Align.CENTER )
+
+		headerBar:pack_end( darkModeSwitch )
+
+		window:set_titlebar( headerBar )
+
 		-- TODO: settings
 		local isDarkMode = true
 		local gtkSettings = Gtk.Settings.get_default()
 
 		if isDarkMode then
+			darkModeSwitch:set_active( true )
 			gtkSettings:set_property( "gtk-application-prefer-dark-theme", GObject.Value( GObject.Type.BOOLEAN, true ) )
 		end
 
@@ -230,7 +247,9 @@ local function create_application()
 		prettifyButton:set_image( Gtk.Image {
 			icon_name = "text-css"
 		} )
-		prettifyButton:set_tooltip_text( "Prettify" )
+
+		local prettifyShortcutMarkup = Granite.markup_accel_tooltip( { "<Ctrl>P" }, "Prettify" )
+		prettifyButton:set_tooltip_markup( prettifyShortcutMarkup )
 
 		function prettifyButton:on_toggled()
 			state.is_showing_prettified = self:get_active()
@@ -379,6 +398,23 @@ local function create_application()
 				prettifyButton:set_tooltip_text( "Show original" )
 			end
 		end )
+
+		local gtkSettings = Gtk.Settings.get_default()
+		local darkModeClosure = GObject.Closure( function( object, value )
+			gtkSettings:set_property( "gtk-application-prefer-dark-theme", value )
+			local manager = GtkSource.StyleSchemeManager.get_default()
+			local scheme = manager:get_scheme( "classic" )
+			if value.value then
+				scheme = manager:get_scheme( "solarized-dark" )
+			end
+				buffer:set_style_scheme( scheme )
+		end )
+
+		darkModeSwitch:bind_property_full( "active", gtkSettings, "gtk-application-prefer-dark-theme", 0, darkModeClosure, darkModeClosure )
+
+		-- Need to upgrade to OS 6.0+ to use this:
+		--[[local graniteSettings = Granite.Settings.get_default()
+		gtkSettings.gtk_application_prefer_dark_theme = graniteSettings:get_prefers_color_scheme() == Granite.Settings.ColorScheme.DARK]]
 
 		window:show_all()
 
