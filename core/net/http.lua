@@ -41,6 +41,12 @@ function http:send()
 	end
 
 	local headers, stream = req:go()
+	if not headers then
+		return {
+			error = stream
+		}
+	end
+
 	local body = stream:get_body_as_string()
 
 	local headers_tab = {}

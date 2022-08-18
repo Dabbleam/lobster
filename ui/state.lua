@@ -1,5 +1,9 @@
 local state = {}
 
+-- Special variable used to blank out state items
+-- Probably a better way to do this
+NULL = {}
+
 local STATE_DEBUG = false
 
 local state_hooks = {}
@@ -19,6 +23,7 @@ wrap_table_with_hook_calls = function( table, isNew, key )
     if isNew then
         for k, v in pairs( table ) do
             local childKey = key and ( key .. "." .. k ) or k
+            if v == NULL then v = nil end
 
             if STATE_DEBUG then
                 print( "state: calling hooks for new object subkey: " .. childKey )
@@ -41,6 +46,7 @@ wrap_table_with_hook_calls = function( table, isNew, key )
     setmetatable( wrapped, {
         __newindex = function( _, k, v )
             local childKey = key and ( key .. "." .. k ) or k
+            if v == NULL then v = nil end
             if type( v ) == "table" then
                 v = wrap_table_with_hook_calls( v, v ~= table[ k ], childKey )
             end

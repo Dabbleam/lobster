@@ -224,6 +224,24 @@ local function create_application()
 
 		scrollWindow:add( sourceView )
 
+		local infoBar = Gtk.InfoBar {
+			message_type = Gtk.MessageType.WARNING,
+			hexpand = true,
+			vexpand = false,
+			margin_left = 0,
+			margin_right = 0,
+			margin_top = 0,
+			margin_bottom = 0
+		}
+
+		infoBar:set_show_close_button( true )
+
+		local infoBarLabel = Gtk.Label {}
+
+		local infoBarMain = infoBar:get_content_area()
+		infoBarMain:pack_start( infoBarLabel, false, false, 0 )
+
+		requestInfoPanel:pack_start( infoBar, false, false, 0 )
 		responseContainer:pack_start( scrollWindow, true, true, 0 )
 
 		local responseActions = Gtk.Grid {
@@ -352,6 +370,16 @@ local function create_application()
 			state.sending_request = false
 		end )
 
+		state:on( "response.error", function( error )
+			if error then
+				infoBarLabel:set_text( error )
+				infoBar:set_visible( true )
+				infoBar:set_revealed( true )
+			else
+				infoBar:set_revealed( false )
+			end
+		end )
+
 		state:on( "response.body", function( body )
 			state.prettified = nil
 
@@ -422,6 +450,9 @@ local function create_application()
 		sendButton:grab_default()
 		-- and then this needs to be here because of show_all
 		spinner:set_visible( false )
+		infoBar:set_visible( false )
+		infoBar:set_revealed( false )
+		requestUrlEntry:grab_focus()
 	end
 
 	return application

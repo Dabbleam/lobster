@@ -16,6 +16,10 @@ function request.http( ... )
 	table.insert( threads, {
 		thread = thread,
 		cb = function( result )
+			if not result.error then
+				result.error = NULL
+			end
+
 			state.response = result
 		end
 	} )
