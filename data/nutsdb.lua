@@ -25,10 +25,6 @@ local ENTRY_FLAG_DELETE = 0
 local ENTRY_FLAG_SET = 1
 
 function nuts.open( base )
-	if type( f ) == "string" then
-		f = assert( io.open( f, "rb" ) )
-	end
-
 	local self = { base = base, buckets = {} }
 	setmetatable( self, nuts )
 
@@ -37,6 +33,7 @@ end
 
 function nuts:read_file( f )
 	assert( f and type( f ) == "string", "bad argument #1 to 'read_file' (expected string, got " .. type( f ) .. ")" )
+	self:close()
 	local f = assert( io.open( self.base .. "/" .. f .. ".dat", "rb" ) )
 	self.f = f
 	self:read_entries()
@@ -58,6 +55,13 @@ function nuts:read_entries()
 	end
 
 	self.buckets = self.buckets
+end
+
+function nuts:close()
+	if self.f then
+		self.f:close()
+		self.f = nil
+	end
 end
 
 function nuts:read_entry()
@@ -100,6 +104,7 @@ test:read_file( "0" )
 test:read_file( "1" )
 test:read_file( "2" )
 test:read_file( "3" )
+test:close()
 
 for k, v in pairs( test.buckets ) do
 	print( k )
