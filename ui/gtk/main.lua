@@ -288,6 +288,12 @@ local function create_application()
 			application:quit()
 		end ) )
 
+		acceleratorGroup:connect( Gdk.KEY_P, Gdk.ModifierType.CONTROL_MASK, Gtk.AccelFlags.VISIBLE, GObject.Closure( function()
+			if prettifyButton:get_sensitive() then
+				prettifyButton:clicked()
+			end
+		end ) )
+
 		window:add_accel_group( acceleratorGroup )
 
 		-- hook everything up!
@@ -323,8 +329,12 @@ local function create_application()
 			spinner:set_visible( busy )
 		end )
 
-		state:on( "response.body", function( body )
+		state:on( "response", function( response )
 			state.sending_request = false
+		end )
+
+		state:on( "response.body", function( body )
+			state.prettified = nil
 
 			prettifyButton:set_active( false )
 			if body and body ~= "" then
@@ -349,8 +359,11 @@ local function create_application()
 					local source = state.response.body
 					local type = state.response.contentType
 
-					if type == "text/html" or type == "text/xml" or type == "application/xml" then
-						prettified = state.prettifiers.xml.prettify( source )
+					-- TODO: none of this should be here, and all of it should run
+					-- on another thread without blocking the UI!!!
+
+					if type == "text/html" then
+						prettified = state.prettifiers.html.prettify( source )
 					elseif type == "application/json" then
 						prettified = state.prettifiers.json.prettify( source )
 					end
@@ -358,6 +371,10 @@ local function create_application()
 					state.prettified = prettified
 				end
 
+				-- reenable syntax highlighting in case a long minified response
+				-- caused the "highlighting single line took too much time" thing
+				-- this actually does not work and I will probably have to patch GtkSourceView
+				buffer:set_highlight_syntax( true )
 				buffer:set_text( state.prettified, -1 )
 				prettifyButton:set_tooltip_text( "Show original" )
 			end

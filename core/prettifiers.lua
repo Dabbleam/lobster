@@ -1,5 +1,5 @@
 local prettifiers = {}
 prettifiers.json = require "core.prettifiers.json"
-prettifiers.xml = require "core.prettifiers.xml"
+prettifiers.html = require "core.prettifiers.html"
 
 return prettifiers
