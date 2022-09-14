@@ -9,6 +9,7 @@ local GLib = lgi.GLib
 local Granite = lgi.Granite
 
 local state = require "ui.state"
+local sidebar = require "ui.gtk.components.sidebar"
 
 local function create_application()
 	local application = Gtk.Application {
@@ -73,16 +74,7 @@ local function create_application()
 			gtkSettings:set_property( "gtk-application-prefer-dark-theme", GObject.Value( GObject.Type.BOOLEAN, true ) )
 		end
 
-		local button = Gtk.Button {
-			label = "Change state"
-		}
-
-		local requestHistoryPanel = Gtk.Box {
-			orientation = Gtk.Orientation.VERTICAL,
-			spacing = 10,
-			hexpand = true,
-			vexpand = true,
-		}
+		local sidebarInstance = sidebar.new()
 
 		local requestInfoPanel = Gtk.Box {
 			orientation = Gtk.Orientation.VERTICAL,
@@ -90,32 +82,6 @@ local function create_application()
 			hexpand = true,
 			vexpand = true,
 		}
-
-		local requestHistoryPanelHeader = Gtk.Box {
-			orientation = Gtk.Orientation.HORIZONTAL,
-			hexpand = true,
-			vexpand = false,
-			margin_top = 10,
-			margin_bottom = 10,
-			margin_left = 10,
-			margin_right = 10
-		}
-
-		local requestHistoryPanelTitle = Gtk.Label {
-			label = "REQUEST HISTORY",
-			name = "requestHistoryPanelTitle",
-		}
-
-		requestHistoryPanelTitle:get_style_context():add_class( "h4" )
-
-		local requestHistoryPanelTitleAlignment = Gtk.Alignment {
-			xalign = 0.5,
-			yalign = 0.5,
-			hexpand = true,
-			vexpand = false,
-			child = requestHistoryPanelTitle
-		}
-		requestHistoryPanelHeader:pack_start( requestHistoryPanelTitleAlignment, true, true, 0 )
 
 		local requestGrid = Gtk.Grid {
 			row_spacing = 10,
@@ -162,10 +128,6 @@ local function create_application()
 
 		requestUrlEntry:set_activates_default( true )
 		sendButton:set_can_default( true )
-
-		local function update_state_response( response )
-			state.response = response
-		end
 
 		function sendButton:on_clicked()
 			local requestType = requestTypeSelector:get_active_text()
@@ -300,8 +262,6 @@ local function create_application()
 		requestGrid:attach( comboWrapper, 0, 0, 1, 1 )
 		requestGrid:attach( responseContainer, 0, 1, 1, 1 )
 
-		requestHistoryPanel:pack_start( requestHistoryPanelHeader, false, false, 0 )
-		requestHistoryPanel:pack_start( button, true, false, 0 )
 		requestInfoPanel:add( requestGrid )
 
 		local paned = Gtk.Paned {
@@ -310,8 +270,10 @@ local function create_application()
 			vexpand = true,
 		}
 
-		paned:add1( requestHistoryPanel )
+		paned:add1( sidebarInstance.element )
 		paned:add2( requestInfoPanel )
+
+		sidebarInstance:switch_to( "history" )
 
 		window:add( paned )
 
