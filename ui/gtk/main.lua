@@ -129,11 +129,14 @@ local function create_application()
 		requestUrlEntry:set_activates_default( true )
 		sendButton:set_can_default( true )
 
+		local getSelectedHeaders -- forward declaration, but I really don't like this
+
 		function sendButton:on_clicked()
 			local requestType = requestTypeSelector:get_active_text()
 			local requestUrl = requestUrlEntry:get_text()
 			state.sending_request = true
-			request = state.managers.request.http( requestUrl, requestType )
+			local headers = getSelectedHeaders()
+			request = state.managers.request.http( requestUrl, requestType, headers )
 		end
 
 		local spinner = Gtk.Spinner {
@@ -147,6 +150,147 @@ local function create_application()
 		comboWrapper:pack_start( requestTypeSelector, false, false, 0 )
 		comboWrapper:pack_start( requestUrlEntry, true, true, 0 )
 		comboWrapper:pack_start( sendButton, false, false, 0 )
+
+		local parametersContainer = Gtk.Box {
+			orientation = Gtk.Orientation.VERTICAL,
+			spacing = 10,
+			hexpand = true,
+			vexpand = true,
+		}
+
+		local parametersNotebook = Gtk.Notebook {
+			hexpand = true,
+			vexpand = true,
+			show_tabs = true,
+			show_border = false
+		}
+
+		local headersContainer = Gtk.ScrolledWindow {
+			hscrollbar_policy = Gtk.PolicyType.AUTOMATIC,
+			vscrollbar_policy = Gtk.PolicyType.AUTOMATIC,
+			hexpand = true,
+			vexpand = true,
+		}
+
+		local headersTreeView = Gtk.TreeView {
+			hexpand = true,
+			vexpand = true,
+		}
+
+		local headersListStore = Gtk.ListStore.new {
+			GObject.Type.STRING,
+			GObject.Type.STRING
+		}
+
+		headersTreeView:set_model( headersListStore )
+
+		-- add some mock data just to see if this stuff works
+		headersListStore:append( { "Content-Type", "application/json" } )
+		headersListStore:append( { "Authorization", "Bearer 1234567890" } )
+		headersListStore:append( { "X-Request-ID", "1234567890" } )
+
+		-- all of this should be moved to a nice lua component
+		getSelectedHeaders = function()
+			local headers = {}
+			headersListStore:foreach( function( model, path, iter )
+				local key = model:get_value( iter, 0 )
+				local value = model:get_value( iter, 1 )
+
+				key = key:get_string()
+				value = value:get_string()
+
+				if key ~= "" then
+					headers[ key ] = value
+				end
+			end )
+			return headers
+		end
+
+		local headersNameColumn = Gtk.TreeViewColumn {
+			title = "Name",
+			resizable = true,
+			sort_column_id = 0
+		}
+
+		local headersValueColumn = Gtk.TreeViewColumn {
+			title = "Value",
+			resizable = true,
+			sort_column_id = 1
+		}
+
+		-- todo: probably shouldn't hardcode these numbers?
+		headersNameColumn:set_fixed_width( 150 )
+		headersValueColumn:set_fixed_width( 450 )
+
+		local headersNameCellRenderer = Gtk.CellRendererText { editable = true }
+		local headersValueCellRenderer = Gtk.CellRendererText { editable = true }
+
+		headersNameColumn:pack_start( headersNameCellRenderer, true )
+		headersNameColumn:add_attribute( headersNameCellRenderer, "text", 0 )
+
+		headersValueColumn:pack_start( headersValueCellRenderer, true )
+		headersValueColumn:add_attribute( headersValueCellRenderer, "text", 1 )
+
+		headersNameCellRenderer.on_edited = function( renderer, path, new_text )
+			local treepath = Gtk.TreePath.new_from_string( path )
+			local model = headersTreeView:get_model()
+			model:set_value( model:get_iter( treepath ), 0, GObject.Value( GObject.Type.STRING, new_text ) )
+		end
+
+		headersValueCellRenderer.on_edited = function( renderer, path, new_text )
+			local treepath = Gtk.TreePath.new_from_string( path )
+			local model = headersTreeView:get_model()
+			model:set_value( model:get_iter( treepath ), 1, GObject.Value( GObject.Type.STRING, new_text ) )
+		end
+
+		headersTreeView:append_column( headersNameColumn )
+		headersTreeView:append_column( headersValueColumn )
+
+		local headersLabel = Gtk.Label {
+			label = "Headers",
+			hexpand = true,
+			vexpand = false,
+			halign = Gtk.Align.START,
+			valign = Gtk.Align.CENTER
+		}
+
+		headersContainer:add( headersTreeView )
+		parametersNotebook:append_page( headersContainer, headersLabel )
+
+		local bodyContainer = Gtk.Box {
+			orientation = Gtk.Orientation.VERTICAL,
+			spacing = 10,
+			hexpand = true,
+			vexpand = true,
+		}
+
+		local bodyBuffer = GtkSource.Buffer {}
+		local bodyLanguageManager = GtkSource.LanguageManager()
+		local bodyLanguage = bodyLanguageManager:get_language( "json" )
+		bodyBuffer:set_language( bodyLanguage )
+
+		local bodyEditor = GtkSource.View {
+			hexpand = true,
+			vexpand = true,
+			buffer = bodyBuffer
+		}
+
+		bodyEditor:set_show_line_numbers( true )
+		bodyEditor:set_auto_indent( true )
+		bodyEditor:set_indent_on_tab( true )
+
+		bodyContainer:add( bodyEditor )
+
+		local bodyLabel = Gtk.Label {
+			label = "Body",
+			hexpand = true,
+			vexpand = false,
+			halign = Gtk.Align.START,
+			valign = Gtk.Align.CENTER
+		}
+
+		parametersNotebook:append_page( bodyContainer, bodyLabel )
+		parametersContainer:pack_start( parametersNotebook, true, true, 0 )
 
 		local buffer = GtkSource.Buffer {}
 		local languageManager = GtkSource.LanguageManager()
@@ -182,6 +326,7 @@ local function create_application()
 			local manager = GtkSource.StyleSchemeManager.get_default()
 			local scheme = manager:get_scheme( "solarized-dark" )
 			buffer:set_style_scheme( scheme )
+			bodyBuffer:set_style_scheme( scheme )
 		end
 
 		scrollWindow:add( sourceView )
@@ -259,8 +404,21 @@ local function create_application()
 
 		responseContainer:pack_start( responseActions, false, false, 0 )
 
+		local parametersResponsePaned = Gtk.Paned {
+			orientation = Gtk.Orientation.VERTICAL,
+			hexpand = true,
+			vexpand = true,
+			margin_left = 0,
+			margin_right = 0,
+			margin_top = 0,
+			margin_bottom = 0
+		}
+
+		parametersResponsePaned:pack1( parametersContainer, true, false )
+		parametersResponsePaned:pack2( responseContainer, true, false )
+
 		requestGrid:attach( comboWrapper, 0, 0, 1, 1 )
-		requestGrid:attach( responseContainer, 0, 1, 1, 1 )
+		requestGrid:attach( parametersResponsePaned, 0, 1, 1, 1 )
 
 		requestInfoPanel:add( requestGrid )
 
@@ -397,8 +555,13 @@ local function create_application()
 			if value.value then
 				scheme = manager:get_scheme( "solarized-dark" )
 			end
-				buffer:set_style_scheme( scheme )
+			buffer:set_style_scheme( scheme )
+			bodyBuffer:set_style_scheme( scheme )
 		end )
+
+		-- TODO: run darkModeClosure once to set the initial state
+		-- would save me from having to set the stuff by default in both buffer and bodyBuffer
+		-- and I bet we'll do more dark mode specific stuff in the future
 
 		darkModeSwitch:bind_property_full( "active", gtkSettings, "gtk-application-prefer-dark-theme", 0, darkModeClosure, darkModeClosure )
 
@@ -415,6 +578,13 @@ local function create_application()
 		infoBar:set_visible( false )
 		infoBar:set_revealed( false )
 		requestUrlEntry:grab_focus()
+
+		-- split sizes reasonably between the request and response panes once we're all inited
+		local sizeAllocation = parametersResponsePaned:get_allocation()
+		parametersResponsePaned:set_position( sizeAllocation.height / 2.5 )
+
+		-- hide body tab by default; apparently hiding its first child does that. neat!
+		bodyContainer:hide()
 	end
 
 	return application
