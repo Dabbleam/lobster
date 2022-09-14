@@ -11,7 +11,7 @@ local Granite = lgi.Granite
 local state = require "ui.state"
 local sidebar = require "ui.gtk.components.sidebar"
 
-local function create_application()
+local function create_application( settings )
 	local application = Gtk.Application {
 		application_id = "com.dabbleam.lobster",
 		flags = Gio.ApplicationFlags.FLAGS_NONE,
@@ -101,7 +101,7 @@ local function create_application()
 			name = "requestUrlEntry"
 		}
 
-		requestUrlEntry:set_text( "https://dabbleam.com" )
+		requestUrlEntry:set_text( settings:get( "last_url" ) or "" )
 		requestUrlEntry:set_placeholder_text( "Endpoint URL" )
 
 		local comboWrapper = Gtk.Box {
@@ -134,6 +134,7 @@ local function create_application()
 		function sendButton:on_clicked()
 			local requestType = requestTypeSelector:get_active_text()
 			local requestUrl = requestUrlEntry:get_text()
+			settings:set( "last_url", requestUrl )
 			state.sending_request = true
 			local headers = getSelectedHeaders()
 			request = state.managers.request.http( requestUrl, requestType, headers )

@@ -19,9 +19,14 @@ state.managers = {
 state.protocols = protocols
 
 local socket = require "socket"
+local db = require "data.db"
+
+-- TODO: use xdg/whatever is used in other platforms
+-- to find where to store the database
+local settings = db.open( "settings.db" )
 
 local gtkUi = require "ui.gtk.main"
-local app = gtkUi.create_application()
+local app = gtkUi.create_application( settings )
 
 local main_event_loop = function()
 	request.pump()
