@@ -29,6 +29,8 @@ local history = db.open( "history.db", "history" )
 state.settings = settings
 state.history = history
 
+request.init()
+
 local gtkUi = require "ui.gtk.main"
 local app = gtkUi.create_application( settings, history )
 

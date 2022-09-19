@@ -3,15 +3,38 @@ local state = require "core.state"
 
 local request = {}
 
+local request_object = {}
+
 local threads = {}
 
-function request.http( ... )
-	local thread = lanes.gen( "*", function( ... )
+function request_object:cancel()
+	if self.thread then
+		-- TODO: this doesn't work. we could forcibly kill the thread
+		-- but that leaks resources.
+
+		self.thread:cancel()
+	end
+end
+
+request_object.__index = request_object
+
+function request.init()
+	local historyEntries = state.history:select( {
+		order_by = { desc = "timestamp" }
+	} )
+
+	state.history_entries = historyEntries
+end
+
+function request.http( url, method, headers, body )
+	local thread = lanes.gen( "*", {
+		cancelstep = true,
+	}, function( url, method, headers, body )
 		local http = require "core.net.http"
-		local req = http.new( ... )
+		local req = http.new( url, method, headers, body )
 		local result = req:send()
 		return result
-	end )( ... )
+	end )( url, method, headers, body )
 
 	table.insert( threads, {
 		thread = thread,
@@ -21,8 +44,35 @@ function request.http( ... )
 			end
 
 			state.response = result
+			if state.history then
+				local entry = {
+					url = url,
+					method = method,
+					headers = headers,
+					body = body,
+					response_code = result.status,
+					response_headers = result.headers,
+					response_body = result.body
+				}
+
+				entry.id = state.history:insert( entry )
+				table.insert( state.history_entries, 1, entry )
+				-- this is ungreat, would be cool if the state thing watched for changes with table.insert
+				state:notify( "new_history_entry", entry )
+			end
 		end
 	} )
+
+	local obj = {
+		url = url,
+		method = method,
+		headers = headers,
+		body = body,
+		thread = thread
+	}
+	
+	setmetatable( obj, request_object )
+	return obj
 end
 
 function request.pump()
