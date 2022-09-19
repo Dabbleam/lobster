@@ -120,17 +120,6 @@ local function create_application( settings, history )
 		requestUrlEntry:set_activates_default( true )
 		sendButton:set_can_default( true )
 
-		local getSelectedHeaders -- forward declaration, but I really don't like this
-
-		function sendButton:on_clicked()
-			local requestType = requestTypeSelector:get_active_text()
-			local requestUrl = requestUrlEntry:get_text()
-			settings:set( "last_url", requestUrl )
-			state.sending_request = true
-			local headers = getSelectedHeaders()
-			request = state.managers.request.http( requestUrl, requestType, headers )
-		end
-
 		local spinner = Gtk.Spinner {
 			active = true
 		}
@@ -150,11 +139,30 @@ local function create_application( settings, history )
 			vexpand = true,
 		}
 
-		local parametersNotebook = Gtk.Notebook {
+		local parametersStack = Gtk.Stack {
+			transition_type = Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
+			transition_duration = 200,
+			hexpand = true,
+			vexpand = true
+		}
+
+		local parametersStackSwitcher = Gtk.StackSwitcher {
+			stack = parametersStack
+		}
+
+		local headersParent = Gtk.Box {
+			orientation = Gtk.Orientation.VERTICAL,
 			hexpand = true,
 			vexpand = true,
-			show_tabs = true,
-			show_border = false
+		}
+
+		local headersActions = Gtk.Grid {
+			column_spacing = 0,
+			margin_left = 0,
+			margin_right = 0,
+			margin_top = 0,
+			margin_bottom = 0,
+			orientation = Gtk.Orientation.HORIZONTAL
 		}
 
 		local headersContainer = Gtk.ScrolledWindow {
@@ -176,10 +184,28 @@ local function create_application( settings, history )
 
 		headersTreeView:set_model( headersListStore )
 
-		-- add some mock data just to see if this stuff works
-		headersListStore:append( { "Content-Type", "application/json" } )
-		headersListStore:append( { "Authorization", "Bearer 1234567890" } )
-		headersListStore:append( { "X-Request-ID", "1234567890" } )
+		function headersTreeView:on_button_press_event( event )
+			if event.button == 3 then -- right click
+				local path, column, x, y = headersTreeView:get_path_at_pos( event.x, event.y )
+				if path then
+					local iter = headersListStore:get_iter( path )
+					local headerName = headersListStore:get_value( iter, 0 )
+					local menu = Gtk.Menu {}
+
+					local removeItem = Gtk.MenuItem {
+						label = "Remove " .. headerName.value
+					}
+
+					function removeItem:on_activate()
+						headersListStore:remove( iter )
+					end
+
+					menu:append( removeItem )
+					menu:show_all()
+					menu:popup_at_pointer( event )
+				end
+			end
+		end
 
 		-- all of this should be moved to a nice lua component
 		getSelectedHeaders = function()
@@ -217,6 +243,16 @@ local function create_application( settings, history )
 		local headersNameCellRenderer = Gtk.CellRendererText { editable = true }
 		local headersValueCellRenderer = Gtk.CellRendererText { editable = true }
 
+		-- when enter is pressed on the name cell, focus the value cell
+		function headersNameCellRenderer:on_edited( path, new_text )
+			-- need to do this with a small delay because otherwise
+			-- it gets unfocused immediately
+			GLib.timeout_add( GLib.PRIORITY_DEFAULT, 10, function()
+				local iter = headersListStore:get_iter_from_string( path )
+				headersTreeView:set_cursor( Gtk.TreePath.new_from_string( path ), headersValueColumn, true )
+			end )
+		end
+
 		headersNameColumn:pack_start( headersNameCellRenderer, true )
 		headersNameColumn:add_attribute( headersNameCellRenderer, "text", 0 )
 
@@ -238,16 +274,50 @@ local function create_application( settings, history )
 		headersTreeView:append_column( headersNameColumn )
 		headersTreeView:append_column( headersValueColumn )
 
-		local headersLabel = Gtk.Label {
-			label = "Headers",
-			hexpand = true,
-			vexpand = false,
-			halign = Gtk.Align.START,
-			valign = Gtk.Align.CENTER
+		local addHeaderButton = Gtk.Button {
+			name = "addHeaderButton"
 		}
 
+		addHeaderButton:get_style_context():add_class( "flat" )
+
+		addHeaderButton:set_always_show_image( true )
+		addHeaderButton:set_image( Gtk.Image {
+			icon_name = "list-add-symbolic"
+		} )
+
+		function addHeaderButton:on_clicked()
+			headersListStore:append( { "", "" } )
+			local path = Gtk.TreePath.new_from_indices {
+				headersListStore:iter_n_children() - 1
+			}
+			headersTreeView:set_cursor( path, headersNameColumn, true )
+		end
+
+		local deleteHeaderButton = Gtk.Button {
+			name = "deleteHeaderButton"
+		}
+
+		deleteHeaderButton:get_style_context():add_class( "flat" )
+
+		deleteHeaderButton:set_always_show_image( true )
+		deleteHeaderButton:set_image( Gtk.Image {
+			icon_name = "list-remove-symbolic"
+		} )
+
+		function deleteHeaderButton:on_clicked()
+			local selection = headersTreeView:get_selection()
+			local model, iter = selection:get_selected()
+			if iter then
+				model:remove( iter )
+			end
+		end
+
+		headersActions:attach( addHeaderButton, 0, 0, 1, 1 )
+		headersActions:attach( deleteHeaderButton, 1, 0, 1, 1 )
+
 		headersContainer:add( headersTreeView )
-		parametersNotebook:append_page( headersContainer, headersLabel )
+		headersParent:add( headersContainer )
+		headersParent:add( headersActions )
 
 		local bodyContainer = Gtk.Box {
 			orientation = Gtk.Orientation.VERTICAL,
@@ -281,8 +351,20 @@ local function create_application( settings, history )
 			valign = Gtk.Align.CENTER
 		}
 
-		parametersNotebook:append_page( bodyContainer, bodyLabel )
-		parametersContainer:pack_start( parametersNotebook, true, true, 0 )
+		parametersStack:add_titled( headersParent, "headers", "Headers" )
+		parametersStack:add_titled( bodyContainer, "body", "Body" )
+
+		local parametersStackSwitcherAlignment = Gtk.Alignment {
+			parametersStackSwitcher,
+			xalign = 0.5,
+			yalign = 0.5,
+			xscale = 0.0,
+			yscale = 0.0,
+			hexpand = true,
+			vexpand = false
+		}
+		parametersContainer:add( parametersStackSwitcherAlignment )
+		parametersContainer:add( parametersStack )
 
 		local buffer = GtkSource.Buffer {}
 		local languageManager = GtkSource.LanguageManager()
@@ -532,6 +614,78 @@ local function create_application( settings, history )
 			end
 		end )
 
+		state:on( "request_method", function( method )
+			if method == "POST" or method == "PUT" or method == "PATCH" then
+				bodyContainer:show()
+			else
+				bodyContainer:hide()
+			end
+		end )
+
+		local httpMethods = state.protocols.http.methods
+
+		for _, method in ipairs( httpMethods ) do
+			requestTypeSelector:append( method, method )
+		end
+
+		function sendButton:on_clicked()
+			if state.sending_request then
+				state.sending_request:cancel()
+				return
+			end
+
+			local requestType = requestTypeSelector:get_active_text()
+			local requestUrl = requestUrlEntry:get_text()
+			settings:set( "last_url", requestUrl )
+			local headers = getSelectedHeaders()
+			local body = bodyBuffer:get_text( bodyBuffer:get_start_iter(), bodyBuffer:get_end_iter(), true )
+			if not bodyContainer:is_visible() then
+				body = nil
+			end
+
+			state.sending_request = state.managers.request.http( requestUrl, requestType, headers, body )
+			sidebarInstance:unselect_history_entry()
+		end
+
+		function requestTypeSelector:on_changed()
+			local method = self:get_active_text()
+			state.request_method = method
+		end
+
+		sidebarInstance.on_history_entry_selected = function( entry )
+			requestUrlEntry:set_text( entry.url )
+
+			local methodIndex = 0
+			for i, method in ipairs( httpMethods ) do
+				if method == entry.method then
+					methodIndex = i
+					break
+				end
+			end
+			requestTypeSelector:set_active( methodIndex - 1 )
+
+			headersListStore:clear()
+			for header, value in pairs( entry.headers ) do
+				local row = headersListStore:append()
+				headersListStore:set( row, { header, value } )
+			end
+
+			local contentType = nil
+			for header, value in pairs( entry.response_headers ) do
+				if header:lower() == "content-type" then
+					contentType = value:match( "^([^;]*)" ):lower()
+					break
+				end
+			end
+
+			state.response = {
+				body = entry.response_body,
+				contentType = contentType,
+				headers = entry.response_headers,
+				status = entry.response_code
+			}
+		end
+
 		local isDarkMode = settings:get( "dark_mode" )
 		local gtkSettings = Gtk.Settings.get_default()
 
@@ -577,12 +731,11 @@ local function create_application( settings, history )
 		infoBar:set_revealed( false )
 		requestUrlEntry:grab_focus()
 
+		requestTypeSelector:set_active( 0 )
+
 		-- split sizes reasonably between the request and response panes once we're all inited
 		local sizeAllocation = parametersResponsePaned:get_allocation()
 		parametersResponsePaned:set_position( sizeAllocation.height / 2.5 )
-
-		-- hide body tab by default; apparently hiding its first child does that. neat!
-		bodyContainer:hide()
 	end
 
 	return application
