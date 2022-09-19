@@ -11,7 +11,7 @@ local Granite = lgi.Granite
 local state = require "core.state"
 local sidebar = require "ui.gtk.components.sidebar"
 
-local function create_application( settings )
+local function create_application( settings, history )
 	local application = Gtk.Application {
 		application_id = "com.dabbleam.lobster",
 		flags = Gio.ApplicationFlags.FLAGS_NONE,
@@ -65,15 +65,6 @@ local function create_application( settings )
 
 		window:set_titlebar( headerBar )
 
-		-- TODO: settings
-		local isDarkMode = true
-		local gtkSettings = Gtk.Settings.get_default()
-
-		if isDarkMode then
-			darkModeSwitch:set_active( true )
-			gtkSettings:set_property( "gtk-application-prefer-dark-theme", GObject.Value( GObject.Type.BOOLEAN, true ) )
-		end
-
 		local sidebarInstance = sidebar.new()
 
 		local requestInfoPanel = Gtk.Box {
@@ -84,7 +75,7 @@ local function create_application( settings )
 		}
 
 		local requestGrid = Gtk.Grid {
-			row_spacing = 10,
+			row_spacing = 0,
 			column_spacing = 10,
 			margin_left = 0,
 			margin_right = 0,
@@ -101,7 +92,7 @@ local function create_application( settings )
 			name = "requestUrlEntry"
 		}
 
-		requestUrlEntry:set_text( settings:get( "last_url" ) or "" )
+		requestUrlEntry:set_text( settings:get( "last_url", "" ) )
 		requestUrlEntry:set_placeholder_text( "Endpoint URL" )
 
 		local comboWrapper = Gtk.Box {
@@ -323,13 +314,6 @@ local function create_application( settings )
 		sourceView:set_name( "sourceView" )
 		sourceView:set_editable( false )
 
-		if isDarkMode then
-			local manager = GtkSource.StyleSchemeManager.get_default()
-			local scheme = manager:get_scheme( "solarized-dark" )
-			buffer:set_style_scheme( scheme )
-			bodyBuffer:set_style_scheme( scheme )
-		end
-
 		scrollWindow:add( sourceView )
 
 		local infoBar = Gtk.InfoBar {
@@ -353,7 +337,7 @@ local function create_application( settings )
 		responseContainer:pack_start( scrollWindow, true, true, 0 )
 
 		local responseActions = Gtk.Grid {
-			column_spacing = 5,
+			column_spacing = 0,
 			margin_left = 0,
 			margin_right = 0,
 			margin_top = 0,
@@ -363,7 +347,7 @@ local function create_application( settings )
 
 		responseActions:get_style_context():add_class( "library-toolbar" )
 
-		prettifyButton = Gtk.ToggleButton {
+		local prettifyButton = Gtk.ToggleButton {
 			name = "prettifyButton"
 		}
 
@@ -548,8 +532,12 @@ local function create_application( settings )
 			end
 		end )
 
+		local isDarkMode = settings:get( "dark_mode" )
 		local gtkSettings = Gtk.Settings.get_default()
-		local darkModeClosure = GObject.Closure( function( object, value )
+
+		local function setDarkMode( enabled )
+			settings:set( "dark_mode", enabled )
+			local value = GObject.Value( GObject.Type.BOOLEAN, enabled )
 			gtkSettings:set_property( "gtk-application-prefer-dark-theme", value )
 			local manager = GtkSource.StyleSchemeManager.get_default()
 			local scheme = manager:get_scheme( "classic" )
@@ -558,11 +546,20 @@ local function create_application( settings )
 			end
 			buffer:set_style_scheme( scheme )
 			bodyBuffer:set_style_scheme( scheme )
+		end
+
+		local gtkSettings = Gtk.Settings.get_default()
+		local darkModeClosure = GObject.Closure( function( object, value )
+			setDarkMode( value.value )
 		end )
 
-		-- TODO: run darkModeClosure once to set the initial state
-		-- would save me from having to set the stuff by default in both buffer and bodyBuffer
-		-- and I bet we'll do more dark mode specific stuff in the future
+		if isDarkMode then
+			-- we don't do this in the closure because we don't want to trigger
+			-- the callback when we set the property (might cause an infinite loop or something)
+			darkModeSwitch:set_active( true )
+		end
+
+		setDarkMode( isDarkMode )
 
 		darkModeSwitch:bind_property_full( "active", gtkSettings, "gtk-application-prefer-dark-theme", 0, darkModeClosure, darkModeClosure )
 
