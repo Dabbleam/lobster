@@ -23,10 +23,14 @@ local db = require "data.db"
 
 -- TODO: use xdg/whatever is used in other platforms
 -- to find where to store the database
-local settings = db.open( "settings.db" )
+local settings = db.open( "settings.db", "settings" )
+local history = db.open( "history.db", "history" )
+
+state.settings = settings
+state.history = history
 
 local gtkUi = require "ui.gtk.main"
-local app = gtkUi.create_application( settings )
+local app = gtkUi.create_application( settings, history )
 
 local main_event_loop = function()
 	request.pump()

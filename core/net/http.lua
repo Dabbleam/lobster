@@ -31,6 +31,7 @@ end
 function http:send()
 	local req = _http.new_from_uri( self.url )
 	req.headers:upsert( ":method", self.method )
+	req.follow_redirects = false
 	if self.headers then
 		for k, v in pairs( self.headers ) do
 			req.headers:upsert( k, v )
@@ -48,6 +49,7 @@ function http:send()
 	end
 
 	local body = stream:get_body_as_string()
+	local statusCode = headers:get( ":status" )
 
 	local headers_tab = {}
 	local contentType = "text/plain"
@@ -61,6 +63,7 @@ function http:send()
 	end
 
 	return {
+		status = statusCode,
 		headers = headers_tab,
 		body = body,
 		contentType = contentType
