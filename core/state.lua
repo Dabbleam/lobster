@@ -13,6 +13,14 @@ function state:on( key, func, ... )
     table.insert( state_hooks[ key ], { func = func, args = { ... } } )
 end
 
+function state:notify( key, ... )
+    if state_hooks[ key ] then
+        for i, v in ipairs( state_hooks[ key ] ) do
+            v.func( ... )
+        end
+    end
+end
+
 local wrap_table_with_hook_calls
 
 -- This might be too much recursion, look into exempting some objects?
@@ -29,7 +37,7 @@ wrap_table_with_hook_calls = function( table, isNew, key )
                 print( "state: calling hooks for new object subkey: " .. childKey )
             end
 
-            if type( v ) == "table" and k:sub( 1, 1 ) ~= "_" then
+            if type( v ) == "table" and type( k ) == "string" and k:sub( 1, 1 ) ~= "_" then
                 wrapped[ k ] = wrap_table_with_hook_calls( v, true, childKey )
             else
                 wrapped[ k ] = v

@@ -2,7 +2,7 @@ local lgi = require "lgi"
 
 local Gtk = lgi.Gtk
 
-local state = require "ui.state"
+local state = require "core.state"
 
 local requestHistory = require "ui.gtk.components.sidebar.request-history"
 

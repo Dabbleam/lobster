@@ -8,7 +8,7 @@ local GObject = lgi.GObject
 local GLib = lgi.GLib
 local Granite = lgi.Granite
 
-local state = require "ui.state"
+local state = require "core.state"
 local sidebar = require "ui.gtk.components.sidebar"
 
 local function create_application( settings )

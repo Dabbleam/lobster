@@ -6,7 +6,7 @@ package.path = package.path .. ";includes/?.lua;includes/thirdparty/?.lua"
 -- ASSERT failed: /root/lanes/src/tools.c:430 'lua_type( L, -1) == 3 || lua_type( L, -1) == 4'
 
 
-local state = require "ui.state"
+local state = require "core.state"
 
 local protocols = require "core.protocols"
 local prettifiers = require "core.prettifiers"

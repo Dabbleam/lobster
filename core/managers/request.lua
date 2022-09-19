@@ -1,5 +1,5 @@
 local lanes = require "lanes".configure()
-local state = require "ui.state"
+local state = require "core.state"
 
 local request = {}
 
