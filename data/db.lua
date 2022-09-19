@@ -7,59 +7,66 @@ local models = {}
 
 models.settings = {
 	key = { type = "text", primary = true, unique = true },
-	value = { type = "text" }
+	value = { type = "luatable" }
 }
 
--- hang on, I actually think I want this to be in another db
--- will have to think about it
-
---[[models.history = {
+models.history = {
 	id = { type = "integer", primary = true, unique = true },
 	url = { type = "text" },
+	method = { type = "text" },
 	headers = { type = "luatable" },
 	body = { type = "text" },
 	response_code = { type = "integer" },
 	response_headers = { type = "luatable" },
 	response_body = { type = "text" },
 	timestamp = { type = "integer", default = sqlite.lib.strftime( "%s", "now" ) }
-}]]
+}
 
-function db.open( filename )
+function db.open( filename, schema )
+	assert( models[ schema ], "unknown database schema " .. schema )
+
 	local config_table = {
 		uri = filename
 	}
 
-	for k, v in pairs( models ) do
-		config_table[ k ] = v
-	end
+	config_table[ schema ] = models[ schema ]
 
 	local sql = sqlite( config_table )
 
-	local self = { filename = filename, sql = sql }
+	local self = { filename = filename, sql = sql, schema = schema }
 	setmetatable( self, db )
 
 	return self
 end
 
-function db:get( key )
-	local result = self.sql.settings:get( { where = { key = key } } )
+function db:get( key, default )
+	local result = self.sql[ self.schema ]:get( { where = { key = key } } )
 	if #result == 0 then
-		return nil
+		return default, false
 	end
 
-	return result[ 1 ].value
+	return result[ 1 ].value.value, true
 end
 
 function db:set( key, value )
-	local setting = self:get( key )
-	if setting then
-		self.sql.settings:update {
-			set = { value = value },
+	local setting, exists = self:get( key )
+	if exists then
+		self.sql[ self.schema ]:update {
+			set = { value = { value = value } },
 			where = { key = key }
 		}
 	else
-		self.sql.settings:insert( { key = key, value = value } )
+		self.sql[ self.schema ]:insert( { key = key, value = { value = value } } )
 	end
+end
+
+function db:insert( data )
+	return self.sql[ self.schema ]:insert( data )
+end
+
+-- TODO: params is a leaky abstraction
+function db:select( params )
+	return self.sql[ self.schema ]:get( params )
 end
 
 return db
