@@ -518,6 +518,12 @@ local function create_application( settings, history )
 			end
 		end ) )
 
+		acceleratorGroup:connect( Gdk.KEY_Return, Gdk.ModifierType.CONTROL_MASK, Gtk.AccelFlags.VISIBLE, GObject.Closure( function()
+			if sendButton:get_sensitive() then
+				sendButton:clicked()
+			end
+		end ) )
+
 		window:add_accel_group( acceleratorGroup )
 
 		-- hook everything up!
